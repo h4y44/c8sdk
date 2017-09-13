@@ -1,0 +1,157 @@
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+
+#include "common.h"
+
+typedef unsigned char		BYTE;
+typedef uint8_t				REGISTER;
+typedef uint16_t			OPCODE;
+
+/*
+ * sprites from 0 to F
+ */
+BYTE sprites[5][] =
+{
+	{
+		0xF0,
+		0x90,
+		0x90,
+		0x90,
+		0xF0
+	},
+	{
+		0x20,
+		0x60,
+		0x20,
+		0x20,
+		0x70
+	},
+	{
+		0xF0,
+		0x10,
+		0xF0,
+		0x80,
+		0xF0
+	},
+	{
+		0xF0,
+		0x10,
+		0xF0,
+		0x10,
+		0xF0
+	},
+	{
+		0x90,
+		0x90,
+		0xF0,
+		0x10,
+		0x10
+	},
+	{
+		0xF0,
+		0x80,
+		0xF0,
+		0x10,
+		0xF0
+	},
+	{
+		0xF0,
+		0x80,
+		0xF0,
+		0x90,
+		0xF0
+	},
+	{
+		0xF0,
+		0x10,
+		0x20,
+		0x40,
+		0x40
+	},
+	{
+		0xF0,
+		0x90,
+		0xF0,
+		0x90,
+		0xF0
+	},
+	{
+		0xF0,
+		0x90,
+		0xF0,
+		0x10,
+		0xF0
+	},
+	{
+		0xF0,
+		0x90,
+		0xF0,
+		0x90,
+		0x90
+	},
+	{
+		0xE0,
+		0x90,
+		0xE0,
+		0x90,
+		0xE0
+	},
+	{
+		0xF0,
+		0x80,
+		0x80,
+		0x80,
+		0xF0
+	},
+	{
+		0xE0,
+		0x90,
+		0x90,
+		0x90,
+		0xE0
+	},
+	{
+		0xF0,
+		0x80,
+		0xF0,
+		0x80,
+		0xF0
+	},
+	{
+		0xF0,
+		0x80,
+		0xF0,
+		0x80,
+		0x80
+	}
+};
+
+enum c8_state {
+	C8_STATE_STOPPED,
+	C8_STATE_RUNNING,
+	C8_STATE_PAUSED,
+	C8_STATE_DEBUGGING
+};
+
+enum c8_err {
+	C8_ERR_CORRUPT_ROM,
+	C8_ERR_WRONG_OPCODE
+};
+
+typedef struct
+{
+	BYTE mem[4096];
+	size_t room_size;
+	REGISTER V[16];
+	REGISTER I;
+
+	REGISTER DT, ST; //delay timer and sound timer
+
+	OPCODE PC; //program counter
+	REGISTER SP;  //stack pointer 16 levels of stack calls
+} Chip8_t;
+
+int c8_init(Chip8_t *);
+int c8_load(Chip8_t *, BYTE *, size_t);
+int c8_interpret(Chip8_t *);
