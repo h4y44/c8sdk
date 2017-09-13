@@ -19,7 +19,7 @@ int c8_init(Chip8_t *c8) {
 	/*
 	 * set all registers to 0
 	 */
-	memset()
+	memset(c8->V, 0, 0xf);
 	return 0;
 }
 
