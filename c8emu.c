@@ -13,11 +13,12 @@ int c8_init(Chip8_t *c8) {
 	c8->DT = 0;
 	c8->ST = 0;
 	c8->I = 0x0;
+	c8->VF = 0x0;
 #ifdef C8_DEBUG
 	puts("Done initializing chip8");
 #endif
 	/*
-	 * set all registers to 0
+	 * set all general registers to 0
 	 */
 	memset(c8->V, 0, 0xf);
 	return 0;
@@ -27,7 +28,7 @@ int c8_init(Chip8_t *c8) {
  * load rom from buffer to memory
  * return the size of the rom or -1 if any error
  */
-ssize_t c8_load(Chip8_t *c8, BYTE *rom, size_t rom_size) {
+ssize_t c8_load(Chip8_t *c8, const BYTE *rom, size_t rom_size) {
 	if (rom_size > (0x1000 - 0x200)) {
 		P_DEBUG("Size of rom exceeded the memory of chip8!\n");
 		return -1;
@@ -70,6 +71,8 @@ int c8_interpret(Chip8_t *c8) {
 			 * jump to previous address in stack
 			 * the pop it out
 			 */
+			c8->PC = *(c8->SP);
+			c8->SP += 2;
 
 		}
 		
@@ -89,12 +92,16 @@ int c8_interpret(Chip8_t *c8) {
 				break;
 			case 2:
 				/*
-				 * call new routine from xxx
-				 * sub stack to 2, push current PC to it
+				 * call new routine at xxx
+				 * sub stack to 2 byte, push current PC to it
 				 * then set PC to xxx
 				 */
-				c8->SP -= 0x02;
+				*(c8->SP) = x8->PC;
+				c8->SP -= 2;
 				c8->PC = xxx;
+#ifdef C8_DEBUG
+				P_DEBUG("Jumped to new routine at %03x, stack value: %03x\n", xxx, )
+
 				break;
 			case 3:
 				/*
@@ -129,6 +136,7 @@ int c8_interpret(Chip8_t *c8) {
 			case 7:
 				/*
 				 * add kk to Vx
+				 * what if kk overflow V[x]
 				 */
 				c8->V[x] += kk;
 				break;
@@ -160,7 +168,8 @@ int c8_interpret(Chip8_t *c8) {
 						break;
 					case 4:
 						/*
-						 * add Vy to Vx
+						 * add Vy to Vx, if sum of it exceeds 16 bit
+						 * set VF to 1
 						 */
 						c8->V[x] += c8->V[y];
 						break;
@@ -178,8 +187,12 @@ int c8_interpret(Chip8_t *c8) {
 						break;
 					case 7:
 						/*
-						 *
+						 * SUBN Vx Vy
 						 */
+						if (c8->V[x] > c8->V[y]) {
+							
+						}
+						break;
 				}
 				break;
 		} //switch (o)

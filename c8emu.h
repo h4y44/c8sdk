@@ -143,7 +143,8 @@ typedef struct
 {
 	BYTE mem[4096];
 	size_t room_size;
-	REGISTER V[16];
+	REGISTER V[16]; //16 registers from 0x0 to 0xf
+	REGISTER VF;
 	REGISTER I;
 
 	REGISTER DT, ST; //delay timer and sound timer
