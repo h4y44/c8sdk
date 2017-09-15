@@ -8,19 +8,20 @@ int c8_init(Chip8_t *c8) {
 	// stack pointer on top of preserved memory
 	c8->SP = 0x200;
 	// program counter
-	c8->PC = 0;
+	c8->PC = 0x200;
 	// timers
 	c8->DT = 0;
 	c8->ST = 0;
 	c8->I = 0x0;
 	c8->VF = 0x0;
-#ifdef C8_DEBUG
-	puts("Done initializing chip8");
-#endif
 	/*
 	 * set all general registers to 0
 	 */
 	memset(c8->V, 0, 0xf);
+
+#ifdef C8_DEBUG
+	puts("Done initializing chip8");
+#endif
 	return 0;
 }
 
@@ -39,6 +40,7 @@ ssize_t c8_load(Chip8_t *c8, const BYTE *rom, size_t rom_size) {
 #ifdef C8_DEBUG
 	P_DEBUG("Loaded %ld bytes of rom into memory successfully!", rom_size);
 #endif
+	c8->state = C8_STATE_STOPPED;
 	return 0;
 }
 
@@ -69,10 +71,10 @@ int c8_interpret(Chip8_t *c8) {
 			/*
 			 * return from a routine
 			 * jump to previous address in stack
-			 * the pop it out
+			 * then pop it out
 			 */
 			c8->PC = *(c8->SP);
-			c8->SP += 2;
+			c8->SP += sizeof(OPCODE);
 
 		}
 		
@@ -97,18 +99,18 @@ int c8_interpret(Chip8_t *c8) {
 				 * then set PC to xxx
 				 */
 				*(c8->SP) = x8->PC;
-				c8->SP -= 2;
+				c8->SP -= sizeof(OPCODE);
 				c8->PC = xxx;
 #ifdef C8_DEBUG
 				P_DEBUG("Jumped to new routine at %03x, stack value: %03x\n", xxx, )
-
+#endif
 				break;
 			case 3:
 				/*
 				 * next instruction if Vx = kk
 				 */
 				if (V[x] == kk) {
-					c8->PC += 0x2;
+					c8->PC += sizeof(OPCODE);
 				}
 				break;
 			case 4:
@@ -116,7 +118,7 @@ int c8_interpret(Chip8_t *c8) {
 				 * next instruction if Vx != kk
 				 */
 				if (V[x] != kk) {
-					c8->PC += 0x2;
+					c8->PC += sizeof(OPCODE);
 				}
 				break;
 			case 5:
@@ -124,7 +126,7 @@ int c8_interpret(Chip8_t *c8) {
 				 * next instruction if Vx = Vy
 				 */
 				if (c8->V[x] == c8->V[y]) {
-					c8->PC += 0x2;
+					c8->PC += sizeof(OPCODE);
 				}
 				break;
 			case 6:
@@ -193,7 +195,7 @@ int c8_interpret(Chip8_t *c8) {
 							
 						}
 						break;
-				}
+				} //switch val
 				break;
 		} //switch (o)
 	} //for each opcode in rom
