@@ -4,7 +4,9 @@
  * chip 8 initialization, set up memory, stack and registers
  */
 int c8_init(Chip8_t *c8) {
-	memset(c8->mem, 0, 4096);
+	memset(c8->mem, 0x00, 4096);
+	//load sprites into memory
+	memcpy(c8->mem, sprites, sizeof(sprites));
 	// stack pointer on top of preserved memory
 	c8->SP = 0x200;
 	// program counter
@@ -17,9 +19,9 @@ int c8_init(Chip8_t *c8) {
 	/*
 	 * set all general registers to 0
 	 */
-	memset(c8->V, 0, 0xf);
+	memset(c8->V, 0, 16);
 
-#ifdef C8_DEBUG
+#ifdef DEBUG_ENABLED
 	puts("Done initializing chip8");
 #endif
 	return 0;
@@ -31,14 +33,14 @@ int c8_init(Chip8_t *c8) {
  */
 ssize_t c8_load(Chip8_t *c8, const BYTE *rom, size_t rom_size) {
 	if (rom_size > (0x1000 - 0x200)) {
-		P_DEBUG("Size of rom exceeded the memory of chip8!\n");
+		C8_DEBUG("%s", "Size of rom exceeded the memory of chip8!\n");
 		return -1;
 	}
 	
 	memcpy(c8->mem + 0x200, rom, rom_size);
-	c8->room_size = room_size
-#ifdef C8_DEBUG
-	P_DEBUG("Loaded %ld bytes of rom into memory successfully!", rom_size);
+	c8->room_size = rom_size;
+#ifdef DEBUG_ENABLED
+	C8_DEBUG("Loaded %ld bytes of rom into memory successfully!", rom_size);
 #endif
 	c8->state = C8_STATE_STOPPED;
 	return 0;
@@ -46,16 +48,13 @@ ssize_t c8_load(Chip8_t *c8, const BYTE *rom, size_t rom_size) {
 
 int c8_interpret(Chip8_t *c8) {
 	BYTE *ptr = c8->mem + 0x200;
-	OPCODE opc; //2 bytes for each opcode
+	OPCODE opc;
 	size_t read = 0;
 
 	for (; read < c8->room_size ; ptr += 2, read += 2)
 	{
-		/*fetch opcode from rom*/
+		/* fetch 2 bytes opcode from memory */
 		opc = (*ptr << 8) | (*(ptr + 1));
-#ifdef C8_DEBUG
-		P_DEBUG("Fetched opcode %#4x at %#3x", opc, 0x200 + read);
-#endif
 
 		uint8_t x = (opc & 0x0F00) >> 8;
 		uint8_t y = (opc & 0x00F0) >> 4;
@@ -66,15 +65,25 @@ int c8_interpret(Chip8_t *c8) {
 		
 		if (opc == 0x00E0) {
 			//do somthing with SDL to clear screen
+#ifdef DEBUG_ENABLED
+			C8_DEBUG("%s\n", "SDL clear screen");
+#endif
+			break;
 		}
+		
 		if (opc == 0x00EE) {
 			/*
-			 * return from a routine
-			 * jump to previous address in stack
+			 * returns from a routine
+			 * jumps to previous address in stack
 			 * then pop it out
 			 */
-			c8->PC = *(c8->SP);
+			c8->PC = c8->SP;
 			c8->SP += sizeof(OPCODE);
+
+#ifdef DEBUG_ENABLED
+			C8_DEBUG("Returned from a subroutine to %#3x\n", c8->SP);
+#endif
+			break;
 
 		}
 		
@@ -84,6 +93,9 @@ int c8_interpret(Chip8_t *c8) {
 				 * modern interpreter ignores this
 				 * jump to address xxx
 				 */
+#ifdef DEBUG_ENABLED
+				C8_DEBUG("Deprecated opcode %dxxx\n", o);
+#endif
 				c8->PC = xxx;
 				break;
 			case 1:
@@ -95,21 +107,21 @@ int c8_interpret(Chip8_t *c8) {
 			case 2:
 				/*
 				 * call new routine at xxx
-				 * sub stack to 2 byte, push current PC to it
+				 * sub stack by 2 bytes, push current PC to it
 				 * then set PC to xxx
 				 */
-				*(c8->SP) = x8->PC;
 				c8->SP -= sizeof(OPCODE);
+				*(c8->SP) = c8->PC;
 				c8->PC = xxx;
-#ifdef C8_DEBUG
-				P_DEBUG("Jumped to new routine at %03x, stack value: %03x\n", xxx, )
+#ifdef DEBUG_ENABLED
+				C8_DEBUG("Jumped to new routine at %03x, stack value: %03x\n", xxx, c8->SP);
 #endif
 				break;
 			case 3:
 				/*
 				 * next instruction if Vx = kk
 				 */
-				if (V[x] == kk) {
+				if (c8->V[x] == kk) {
 					c8->PC += sizeof(OPCODE);
 				}
 				break;
@@ -117,7 +129,7 @@ int c8_interpret(Chip8_t *c8) {
 				/*
 				 * next instruction if Vx != kk
 				 */
-				if (V[x] != kk) {
+				if (c8->V[x] != kk) {
 					c8->PC += sizeof(OPCODE);
 				}
 				break;
@@ -138,7 +150,7 @@ int c8_interpret(Chip8_t *c8) {
 			case 7:
 				/*
 				 * add kk to Vx
-				 * what if kk overflow V[x]
+				 * what if kk overflows V[x]??
 				 */
 				c8->V[x] += kk;
 				break;
@@ -173,7 +185,18 @@ int c8_interpret(Chip8_t *c8) {
 						 * add Vy to Vx, if sum of it exceeds 16 bit
 						 * set VF to 1
 						 */
-						c8->V[x] += c8->V[y];
+						{
+							uint16_t temp = c8->V[x] + c8->V[y];
+							if (temp > 0xff) {
+#ifdef DEBUG_ENABLED
+								C8_DEBUG("Integer overflow triggered (%d)\n", temp);
+#endif
+								c8->V[x] = temp << 1;
+								c8->VF = 1;
+								break;
+							}
+							c8->V[x] = temp;
+						}
 						break;
 					case 5:
 						/*
@@ -183,20 +206,127 @@ int c8_interpret(Chip8_t *c8) {
 						break;
 					case 6:
 						/*
-						 * shift right Vx by 1
+						 * right shift Vx by 1
 						 */
 						c8->V[x] >>= 1;
+						c8->VF = c8->V[x] % 2;
 						break;
 					case 7:
 						/*
 						 * SUBN Vx Vy
 						 */
-						if (c8->V[x] > c8->V[y]) {
-							
-						}
+						c8->V[x] = c8->V[y] - c8->V[x];
+						break;
+					case 0xe:
+						/*
+						 * left shift Vx by 1
+						 */
+						c8->V[x] <<= 1;
+						c8->VF = c8->V[x] >> 7;
 						break;
 				} //switch val
 				break;
+			case 9:
+				if (c8->V[x] != c8->V[y]) {
+					c8->PC += sizeof(OPCODE);
+				}
+				break;
+				
+			case 0xa:
+				c8->I = xxx;
+				break;
+				
+			case 0xb:
+				c8->PC = xxx + c8->V[0];
+				break;
+				
+			case 0xc:
+				
+				break;
+				
+			case 0xd:
+				/*
+				 * calls SDL to draw
+				 */
+#ifdef DEBUG_ENABLED
+				C8_DEBUG("%s\n", "Calling SDL to draw");
+#endif
+				break;
+				
+			case 0xe:
+				if (kk == 0x9e) {
+					
+					break;
+				}
+				else if (kk == 0xa1) {
+					
+					break;
+				}
+				break;
+				
+			case 0xf:
+				switch (kk) {
+					case 0x07:
+#ifdef DEBUG_ENABLED
+						C8_DEBUG("%s", "Loading DT into Vx\n");
+#endif
+						c8->V[x] = c8->DT;
+						break;
+					
+					case 0x0a:
+						/*
+						 * interrupted, waiting for user input
+						 */
+#ifdef DEBUG_ENABLED
+						C8_DEBUG("%s", "Waiting for user input\n");
+						scanf("%d\n", &c8->K);
+#endif
+						c8->V[x] = c8->K;
+						break;
+						
+					case 0x15:
+						/*
+						 * Set delay time to Vx
+						 */
+						c8->DT = c8->V[x];
+						break;
+						
+					case 0x18:
+						c8->ST = c8->V[x];
+						break;
+						
+					case 0x1e:
+						c8->I += c8->V[x];
+						break;
+						
+					case 0x29:
+#ifdef DEBUG_ENABLED
+						C8_DEBUG("Loading texture %c into register I\n", c8->V[x]);
+#endif
+						c8->I = c8->V[x] * 5;
+						break;
+						
+					case 0x33:
+						
+						break;
+						
+					case 0x55:
+					
+						break;
+						
+					case 0x65:
+						
+						
+						break;
+						
+					default:
+						C8_DEBUG("Unimplemented opcode: %#3X\n", opc);
+				}
+
+				
+			default:
+				C8_DEBUG("Unimplemented opcode: %#3X\n", opc);
 		} //switch (o)
+		
 	} //for each opcode in rom
 }

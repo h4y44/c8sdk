@@ -173,8 +173,8 @@ long get_size(FILE *fp)
 	fseek(fp, 0, SEEK_END);
 	long flen = ftell(fp);
 	fseek(fp, 0, SEEK_SET);
-#ifdef C8_DEBUG
-	P_DEBUG("Size: %ld (bytes)\n", flen);
+#ifdef DEBUG_ENABLED
+	C8_DEBUG("Size: %ld (bytes)\n", flen);
 #endif
 	return flen;
 }
@@ -193,7 +193,7 @@ Usage: %s [rom file]\n", argv[0]);
 
 	if (!fp)
 	{
-		P_DEBUG("Can not read \'%s\'\n\
+		C8_DEBUG("Can not read \'%s\'\n\
 Check file existence or your permission\n", argv[1]);
 		return -1;
 	}

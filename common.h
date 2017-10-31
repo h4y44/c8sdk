@@ -1,9 +1,9 @@
-#ifndef __COMMON_H__
-#define __COMMON_H__
+#ifndef COMMON_H
+#define COMMON_H
 
 #include <stdio.h>
 
-#define P_DEBUG(fmt, ...) \
+#define C8_DEBUG(fmt, ...) \
 	do { fprintf(stderr, "%s:%d:%s(): "fmt, __FILE__, __LINE__, \
 			__func__, __VA_ARGS__); } while (0)
 

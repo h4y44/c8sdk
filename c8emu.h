@@ -1,3 +1,6 @@
+#ifndef C8EMU_H
+#define C8EMU_H
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
@@ -11,7 +14,7 @@ typedef uint16_t			OPCODE;
 /*
  * sprites from 0 to F
  */
-BYTE sprites[5][] =
+BYTE sprites[][5] =
 {
 	{
 		0xF0,
@@ -135,7 +138,6 @@ enum c8_state {
 };
 
 enum c8_err {
-	C8_ERR_CORRUPT_ROM,
 	C8_ERR_WRONG_OPCODE
 };
 
@@ -148,11 +150,15 @@ typedef struct
 	REGISTER I;
 
 	REGISTER DT, ST; //delay timer and sound timer
+	REGISTER K; //key
 
 	OPCODE PC; //program counter
-	REGISTER SP;  //stack pointer 16 levels of stack calls
+	OPCODE SP;  //stack pointer 16 levels of stack calls
+	int state;
 } Chip8_t;
 
 int c8_init(Chip8_t *);
-int c8_load(Chip8_t *, BYTE *, size_t);
+ssize_t c8_load(Chip8_t *, const BYTE *, size_t);
 int c8_interpret(Chip8_t *);
+
+#endif
