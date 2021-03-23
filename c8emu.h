@@ -131,20 +131,20 @@ BYTE sprites[][5] =
 };
 
 enum c8_state {
-	C8_STATE_STOPPED,
-	C8_STATE_RUNNING,
-	C8_STATE_PAUSED,
-	C8_STATE_DEBUGGING
+	C8_STATE_STOPPED, // uninitialized, no program loaded
+	C8_STATE_LOADED, // program is loaded and ready to run
+	C8_STATE_RUNNING, // it is running
+	C8_STATE_DEBUGGING // in debug mode
 };
 
 enum c8_err {
-	C8_ERR_WRONG_OPCODE
+	C8_ERR_WRONG_OPCODE 
 };
 
 typedef struct
 {
 	BYTE mem[4096];
-	size_t room_size;
+	size_t rom_size;
 	REGISTER V[16]; //16 registers from 0x0 to 0xf
 	REGISTER VF;
 	REGISTER I;
@@ -158,7 +158,9 @@ typedef struct
 } Chip8_t;
 
 int c8_init(Chip8_t *);
-ssize_t c8_load(Chip8_t *, const BYTE *, size_t);
+ssize_t c8_load(Chip8_t *, FILE *);
 int c8_interpret(Chip8_t *);
+
+int c8_print_vm(Chip8_t *);
 
 #endif

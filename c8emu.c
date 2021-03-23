@@ -21,28 +21,46 @@ int c8_init(Chip8_t *c8) {
 	 */
 	memset(c8->V, 0, 16);
 
+	c8->state = C8_STATE_STOPPED;
+
 #ifdef DEBUG_ENABLED
 	puts("Done initializing chip8");
 #endif
 	return 0;
 }
 
+long get_size(FILE *fp)
+{
+	fseek(fp, 0, SEEK_END);
+	long flen = ftell(fp);
+	fseek(fp, 0, SEEK_SET);
+#ifdef DEBUG_ENABLED
+	C8_DEBUG("Size: %ld (bytes)\n", flen);
+#endif
+	return flen;
+}
+
 /*
  * load rom from buffer to memory
  * return the size of the rom or -1 if any error
  */
-ssize_t c8_load(Chip8_t *c8, const BYTE *rom, size_t rom_size) {
+ssize_t c8_load(Chip8_t *c8, FILE *romfp) {
+	// get rom size first
+	long rom_size = get_size(romfp);
+
 	if (rom_size > (0x1000 - 0x200)) {
 		C8_DEBUG("%s", "Size of rom exceeded the memory of chip8!\n");
 		return -1;
 	}
 	
-	memcpy(c8->mem + 0x200, rom, rom_size);
-	c8->room_size = rom_size;
+	//memcpy(c8->mem + 0x200, rom, rom_size);
+	fread(c8->mem + 0x200, 1, 1, romfp);
+
+	c8->rom_size = rom_size;
 #ifdef DEBUG_ENABLED
 	C8_DEBUG("Loaded %ld bytes of rom into memory successfully!", rom_size);
 #endif
-	c8->state = C8_STATE_STOPPED;
+	c8->state = C8_STATE_LOADED;
 	return 0;
 }
 
@@ -51,10 +69,12 @@ int c8_interpret(Chip8_t *c8) {
 	OPCODE opc;
 	size_t read = 0;
 
-	for (; read < c8->room_size ; ptr += 2, read += 2)
+	for (; read < c8->rom_size ; ptr += 2, read += 2)
 	{
 		/* fetch 2 bytes opcode from memory */
 		opc = (*ptr << 8) | (*(ptr + 1));
+
+		C8_DEBUG("Opcode: 0x%4x\n", opc);
 
 		uint8_t x = (opc & 0x0F00) >> 8;
 		uint8_t y = (opc & 0x00F0) >> 4;
@@ -110,9 +130,9 @@ int c8_interpret(Chip8_t *c8) {
 				 * sub stack by 2 bytes, push current PC to it
 				 * then set PC to xxx
 				 */
-				c8->SP -= sizeof(OPCODE);
-				*(c8->SP) = c8->PC;
-				c8->PC = xxx;
+				c8->SP += sizeof(OPCODE);
+				c8->SP = c8->PC;
+				c8->PC = xxx; // set program counter to the new address
 #ifdef DEBUG_ENABLED
 				C8_DEBUG("Jumped to new routine at %03x, stack value: %03x\n", xxx, c8->SP);
 #endif
@@ -330,3 +350,41 @@ int c8_interpret(Chip8_t *c8) {
 		
 	} //for each opcode in rom
 }
+
+int c8_print_vm(Chip8_t *c8) {
+	puts("=== C8 VM INFO ===");
+	
+	printf("V[0 -> 15]: ");
+	for (int i = 0; i < 16; ++i) {
+		printf("0x%02x ", c8->V[i]);
+	}
+
+	printf("\nVF: 0x%2x | I : 0x%2x | DT: 0x%2x | ST: 0x%2x\n", c8->VF, c8->I, c8->DT, c8->ST);
+	printf("K: 0x%2x | PC: 0x%2x | SP: 0x%2x\n", c8->K, c8->PC, c8->SP);
+	printf("State: %d | ROM size: %ld\n", c8->state, c8->room_size);
+
+	return 0;
+}
+
+int main(int argc, char**argv) {
+	char *fname = argv[1]; // fail if doesn't exist
+
+	FILE *fp = fopen(fname, "rb");
+	if (!fp) {
+		C8_DEBUG("%s", "Failed to open file");
+		exit(-1);
+	}
+
+	puts(":: Creating c8 vm");
+	Chip8_t c8vm;
+	c8_init(&c8vm);
+
+	int err = c8_load(&c8vm, fp);
+	c8_print_vm(&c8vm);
+
+	c8_interpret(&c8vm);
+
+	return 0;
+}
+
+
